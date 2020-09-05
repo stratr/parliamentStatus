@@ -9,10 +9,31 @@ const axios = require("axios");
 const date = new Date();
 const dateString = date.toISOString().slice(0, 10);
 
+/*
+Test commands:
+node -e 'require("./index").parliamentStatus()'
+
+Deploy:
+// gcloud functions deploy parliamentStatus --runtime nodejs10 --trigger-topic parliament_status --timeout 180s
+*/
+
 const fetchData = async (siteUrl) => {
     const result = await axios.get(siteUrl);
     return cheerio.load(result.data);
 };
+
+exports.parliamentStatus = async (event) => {
+    let eventPayload = null;
+    if (event) {
+        // function could be updated to get more config parameters from the pubsub event
+        // that way it would be possible to use the same function for multiple jobs
+        eventPayload = JSON.parse(Buffer.from(event.data, 'base64').toString());
+        console.log(`Payload of the triggering event: ${JSON.stringify(eventPayload)}`);
+    }
+
+    // scrape eduskunta.fi and store the data into BigQuery
+    await getMeps();
+}
 
 function insertRowsAsStream(rows, table) {
     // insert options, raw: true means that the same rows format is used as in the API documentation
@@ -38,7 +59,7 @@ const getMeps = async () => {
         const h2 = blockEl.find('h2').text();
         if (typeof h2 === 'string' && h2.indexOf('vaalipiiri') > -1) {
             const electoralDistrict = h2.replace(/\s\(.*/, '');
-            console.log(electoralDistrict);
+            //console.log(electoralDistrict);
 
             const meps = blockEl.find('table tbody tr');
             //console.log(blockEl.html());
@@ -62,13 +83,20 @@ const getMeps = async () => {
 
     var bqRows = mepsFetched.map(mep => {
         return {
-            "insertId": mep.date + mep.name,
+            "insertId": mep.date + mep.name ,
             "json": mep
         }
     });
 
-    console.log(bqRows);
-    insertRowsAsStream(bqRows, table)
-}
+    //console.log(bqRows);
 
-getMeps()
+    return insertRowsAsStream(bqRows, table)
+        .then(response => {
+            console.log(JSON.stringify(response));
+            console.log('Fetching meps completed');
+        })
+        .catch((err) => {
+            // An API error or partial failure occurred.
+            console.log(JSON.stringify(err));
+        });
+}
