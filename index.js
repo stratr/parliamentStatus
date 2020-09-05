@@ -1,16 +1,28 @@
 const { BigQuery } = require('@google-cloud/bigquery');
 const bigquery = new BigQuery();
+const dataset = bigquery.dataset('meps');
+const table = dataset.table('meps_daily');
 
 const cheerio = require('cheerio')
 const axios = require("axios");
 
 const date = new Date();
-const dateString = date.toISOString().slice(0,10);
+const dateString = date.toISOString().slice(0, 10);
 
 const fetchData = async (siteUrl) => {
     const result = await axios.get(siteUrl);
     return cheerio.load(result.data);
 };
+
+function insertRowsAsStream(rows, table) {
+    // insert options, raw: true means that the same rows format is used as in the API documentation
+    const options = {
+        raw: true,
+        allowDuplicates: false
+    };
+
+    return table.insert(rows, options);
+}
 
 const getMeps = async () => {
     const siteUrl = "https://www.eduskunta.fi/FI/kansanedustajat/nykyiset_kansanedustajat/Sivut/default.aspx";
@@ -48,7 +60,15 @@ const getMeps = async () => {
         }
     });
 
-    console.log(mepsFetched);
+    var bqRows = mepsFetched.map(mep => {
+        return {
+            "insertId": mep.date + mep.name,
+            "json": mep
+        }
+    });
+
+    console.log(bqRows);
+    insertRowsAsStream(bqRows, table)
 }
 
 getMeps()
