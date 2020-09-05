@@ -13,12 +13,16 @@ const getMeps = async () => {
     const siteUrl = "https://www.eduskunta.fi/FI/kansanedustajat/Sivut/Kansanedustajat-aakkosjarjestyksessa.aspx";
 
     const $ = await fetchData(siteUrl);
-    const mainBlocks = $('#maincontent div.ms-webpart-zone.ms-fullWidth > div[id^="MSOZoneCell_WebPart"');
-    
+    const mainBlocks = $('#maincontent div.ms-webpart-zone > div[id^="MSOZoneCell_WebPart"]');
 
-    const linkItems = $('#maincontent #WebPartWPQ2 div.link-item'); // the elements that contain mep details
-    
-    console.log(linkItems);
+    const mepsFetched = [];
+    mainBlocks.each((i, block) => {
+        const h2 = $(block).find('h2').html();
+        console.log(h2);
+        if (typeof h2 === 'string') {
+            console.log(h2);
+        }
+    });
 }
 
 getMeps()
